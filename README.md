@@ -1,6 +1,6 @@
 <div align="center">
 
-# Convmelspec: Convertible Spectrograms for On-Device Audio Machine Learning
+# Convmelspec: Melspectrograms for On-Device Audio Machine Learning
 
 <!-- [![Demo Video](docs/melspec.pdf)](https://youtu.be/IZp455wiMk4) -->
 

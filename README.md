@@ -182,7 +182,7 @@ This code is licensed under an Apache 2.0 license. If you use code from this wor
   year = {2022},
   publisher = {GitHub},
   journal = {GitHub repository},
-  howpublished = {\url{http://github.com/adobe-research/ConvMelSpec}},
+  howpublished = {\url{http://github.com/adobe-research/convmelspec}},
 }
 ```
 

@@ -91,7 +91,7 @@ torch.onnx.export(melspec, x, output_path)
 
 ## Convert to ONNX with Opset 17
 
-The ONNX standard and runtime have added suppport for an STFT operator and related functionality (e.g. https://github.com/pytorch/audio/issues/982). As noted, however, PyTorch itself does not yet support exporting with opset 17, so a custom build of PyTorch is required (this works, but not yet documented here).
+The ONNX standard and runtime have added support for an STFT operator and related functionality (e.g. https://github.com/pytorch/audio/issues/982). As noted, however, PyTorch itself does not yet support exporting with opset 17, so a custom build of PyTorch is required (this works, but not yet documented here).
 
 
 ## Convert to CoreML

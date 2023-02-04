@@ -1,6 +1,6 @@
 <div align="center">
 
-# Convmelspec: Melspectrograms for On-Device Audio Machine Learning
+# Convmelspec: Convertible Melspectrograms via 1D Convolutions
 
 <!-- [![Demo Video](docs/melspec.pdf)](https://youtu.be/IZp455wiMk4) -->
 
@@ -13,7 +13,7 @@
 
 For a large class of audio neural network models, a Mel-scaled short-time Fourier transform or Melspectrogram operator is needed. The Melspectrogram operator is not typically implemented in on-device machine learning frameworks such CoreML (and previously ONNX), however, which significantly complicates the cross-platform deployment of audio machine learning models. To mitigate this, here we reuse standardized and interoperable neural network operators to  implement a convertible Melspectrogram by implementing the short-time Fourier transform (STFT) via 1D convolutions.
 
-Beyond basic functionality (known to many), however, we offer an ability to trade-off module storage size and inference speed. To do so, we provide three modes of how we compute the discrete Fourier transform (DFT) matrix needed for the STFT: store, input, and on-the-fly. Our `store` mode precomputed the DFT matrix and stores it directly in your model file (fastest inference, larger model, easy), our `input` mode assumes the DFT matrix is provided as an input parameter to your model (fast inference speed, small model, hard), and our `on-the-fly` model dynamically constructs the DFT matrix at inference time (slower inference, small model, easy). Our module also can be used as a pass-through to torchaudio for training and then converted to DFT mode for conversion and is setup to be compatible to the recent native ONNX stft that still requires a custom compilation setup. Further, we also show how to convert the native torchaudio melspectrogram layers via CoreML model intermedia language ops directly.
+Beyond basic functionality (known to many), however, we offer an ability to trade-off module storage size and inference speed. To do so, we provide three modes of how we compute the discrete Fourier transform (DFT) matrix needed for the STFT: store, input, and on-the-fly. Our `store` mode precomputed the DFT matrix and stores it directly in your model file (fastest inference, larger model, easy), our `input` mode assumes the DFT matrix is provided as an input parameter to your model (fast inference speed, small model, hard), and our `on-the-fly` model dynamically constructs the DFT matrix at inference time (slower inference, small model, easy). Our module also can be used as a pass-through to torchaudio for training and then converted to DFT mode for conversion and is setup to be compatible to the recent native ONNX stft that still requires a custom compilation setup. Further, we also show how to convert the native torchaudio melspectrogram layers via CoreML model intermediate language ops directly.
 
 In total, we implement Melspectrograms in a standardized cross-platform way with minimal impact on model size and reasonble speed. Try it out, let us know how it goes, and submit PRs to fix!
 

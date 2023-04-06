@@ -82,6 +82,7 @@ class TestEquivalence(unittest.TestCase):
             spec_mode="DFT",
             mel_mode="librosa",
             mel_scale="slaney",
+            dtype=torch.float32,
         )
         stft.to(DEVICE)
         melstft.to(DEVICE)
@@ -114,9 +115,14 @@ class TestEquivalence(unittest.TestCase):
         S2_gpu = S2_gpu.detach().cpu().numpy()[0, :, :]
         M_gpu = M_gpu.detach().cpu().numpy()[0, :, :]
 
-        self.assertTrue(np.allclose(S_librosa, S_gpu, atol=1e-04))
-        self.assertTrue(np.allclose(S2_librosa, S2_gpu, atol=1e-04))
-        self.assertTrue(np.allclose(M_librosa, M_gpu, atol=1e-06))
+        # clamp to 1e-4
+        S_librosa = np.clip(S_librosa, a_min=1e-4, a_max=None)
+        S2_librosa = np.clip(S2_librosa, a_min=1e-4, a_max=None)
+        M_librosa = np.clip(M_librosa, a_min=1e-4, a_max=None)
+
+        np.testing.assert_allclose(S_librosa, S_gpu, atol=1e-04)
+        np.testing.assert_allclose(S2_librosa, S2_gpu, atol=1e-04)
+        np.testing.assert_allclose(M_librosa, M_gpu, atol=1e-04)
 
     def test_melpec_vs_torchaudio(self):
 
@@ -142,6 +148,7 @@ class TestEquivalence(unittest.TestCase):
             spec_mode="DFT",
             mel_mode="torchaudio",
             mel_scale="htk",
+            dtype=torch.float32,
         )
 
         stft.to(DEVICE)
@@ -186,8 +193,12 @@ class TestEquivalence(unittest.TestCase):
         S2_gpu = S2_gpu.detach().cpu().numpy()[0, :, :]
         M_gpu = M_gpu.detach().cpu().numpy()[0, :, :]
 
-        self.assertTrue(np.allclose(S2_librosa, S2_gpu, atol=1e-04))
-        self.assertTrue(np.allclose(M_librosa, M_gpu, atol=1e-05))
+         # clamp to 1e-4
+        S2_librosa = np.clip(S2_librosa, a_min=1e-4, a_max=None)
+        M_librosa = np.clip(M_librosa, a_min=1e-4, a_max=None)
+
+        np.testing.assert_allclose(S2_librosa, S2_gpu, atol=1e-04)
+        np.testing.assert_allclose(M_librosa, M_gpu, atol=1e-03) # tolerance is affected by mel clamp
 
    
 

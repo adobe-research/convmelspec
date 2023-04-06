@@ -546,18 +546,13 @@ class ConvertibleSpectrogram(nn.Module):
 
         if db:
             scale = 10.0 if power else 20.0
-            out = scale * torch.log10(out + self.eps)
-
-            # Output shape: 1 x mel x frames
-            if top_db is not None:
-                thresholds = (
-                    torch.max(
-                        torch.max(out, dim=1, keepdim=False)[0],
-                        dim=1,
-                        keepdim=False,
-                    )[0]
-                    - top_db
-                )
-                out = torch.maximum(out, thresholds.reshape(-1, 1, 1))
+            
+            import torchaudio
+            out = torchaudio.functional.amplitude_to_DB(
+                out,
+                multiplier=scale,
+                amin=1e-4,
+                db_multiplier=0,
+                top_db=top_db)
 
         return out

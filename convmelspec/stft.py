@@ -292,6 +292,7 @@ class ConvertibleSpectrogram(nn.Module):
         eps: float = 1e-8,
         dft_mode: str = "on_the_fly",
         coreml: bool = False,
+        dtype: torch.dtype = torch.float16,
     ):
         """_summary_
 
@@ -342,6 +343,7 @@ class ConvertibleSpectrogram(nn.Module):
         self.window_fn = self._create_window_fn(window)
         self.spec_transf = None
         self.stft = None
+        self.clamp_max = torch.finfo(dtype).max
 
         # Create mode (torchaudio vs. DFT and DTF mode if applicable)
         self.set_mode(spec_mode, dft_mode=dft_mode, coreml=self.coreml)
@@ -555,9 +557,9 @@ class ConvertibleSpectrogram(nn.Module):
             assert not torch.isneginf(out).any(), "dft conversion -inf"
 
         if self.n_mel:
-            out = out.clamp(min=1e-4, max=59500)
+            out = out.clamp(min=1e-4, max=self.clamp_max * 0.8)
             out = self.mel(out)
-            out = out.clamp(min=1e-4, max=65504)
+            out = out.clamp(min=1e-4, max=self.clamp_max)
         
         if DEBUG:
             assert not torch.isnan(out).any(), f"mel conversion nan"

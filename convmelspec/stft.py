@@ -508,6 +508,12 @@ class ConvertibleSpectrogram(nn.Module):
         Returns:
             _type_: tensor of (batch x mel x frames)
         """
+        
+        if DEBUG:
+            assert not torch.isnan(x).any(), "input nan"
+            assert not torch.isposinf(x).any(), "input +inf"
+            assert not torch.isneginf(x).any(), "input -inf"
+        
         x = x.unsqueeze(1)  # Add channel: (batch x channel x samples)
         if self.spec_mode == "torchaudio":
             self.spec_transf.power = 2.0 if power else None

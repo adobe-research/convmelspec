@@ -518,6 +518,8 @@ class ConvertibleSpectrogram(nn.Module):
         if self.spec_mode == "torchaudio":
             self.spec_transf.power = 2.0 if power else None
             out = self.spec_transf(x.squeeze(1))
+            if not power:
+                out = torch.abs(out)
 
         elif self.spec_mode == "DFT":
             with torch.cuda.amp.autocast(enabled=False):

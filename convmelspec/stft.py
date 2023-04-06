@@ -542,7 +542,14 @@ class ConvertibleSpectrogram(nn.Module):
             )
 
         if self.n_mel:
+            out = out.clamp(min=1e-4, max=59500)
             out = self.mel(out)
+            out = out.clamp(min=1e-4, max=65504)
+        
+        if DEBUG:
+            assert not torch.isnan(out).any(), f"mel conversion nan"
+            assert not torch.isposinf(out).any(), "mel conversion +inf"
+            assert not torch.isneginf(out).any(), "mel conversion -inf"
 
         if db:
             scale = 10.0 if power else 20.0

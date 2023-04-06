@@ -540,6 +540,11 @@ class ConvertibleSpectrogram(nn.Module):
                 f"Unsupported spec_mode {self.spec_mode} "
                 "(supported modes are 'torchaudio', 'DFT')"
             )
+        
+        if DEBUG:
+            assert not torch.isnan(out).any(), "dft conversion nan"
+            assert not torch.isposinf(out).any(), "dft conversion +inf"
+            assert not torch.isneginf(out).any(), "dft conversion -inf"
 
         if self.n_mel:
             out = out.clamp(min=1e-4, max=59500)

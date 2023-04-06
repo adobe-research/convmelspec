@@ -555,4 +555,9 @@ class ConvertibleSpectrogram(nn.Module):
                 db_multiplier=0,
                 top_db=top_db)
 
+            if DEBUG:
+                assert not torch.isnan(out).any(), "db conversion nan"
+                assert not torch.isposinf(out).any(), "db conversion +inf"
+                assert not torch.isneginf(out).any(), "db conversion -inf"
+
         return out

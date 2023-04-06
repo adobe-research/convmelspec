@@ -16,6 +16,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from scipy import signal as sig
 
+DEBUG = False
 
 class MelFilterbank(nn.Module):
     """Torch mel filterbank linear layer"""
@@ -76,6 +77,12 @@ class MelFilterbank(nn.Module):
                 norm=norm,
                 mel_scale=mel_scale,
             )
+            
+            if DEBUG:
+                assert not torch.isnan(temp.fb).any(), "mel filterbanks nan"
+                assert not torch.isposinf(temp.fb).any(), "mel filterbanks +inf"
+                assert not torch.isneginf(temp.fb).any(), "mel filterbanks -inf"
+
             self.mel_analysis.weight.data.copy_(temp.fb.T)
 
             # Torchaudio 0.11

@@ -359,17 +359,24 @@ class ConvertibleSpectrogram(nn.Module):
             self.device = "cuda"
         return self
 
-    def _create_window_fn(self, window: Union[str, np.ndarray]) -> Callable:
+    def _create_window_fn(self, window: Union[str, np.ndarray, torch.Tensor]) -> Callable:
         """Creates a window function based on the input window.
 
         Args:
-            window (str or np.ndarray): Window type or actual window in an
+            window (str, torch.Tensor or np.ndarray): Window type or actual window in an
                 ndarray.
 
         Returns:
             Callable: Function to create the torch window.
         """
-        if type(window).__module__ == np.__name__:
+        if type(window).__module__ == torch.__name__:
+
+            def window_fn(win_len):
+                return window.to(
+                    self.device
+                )
+
+        elif type(window).__module__ == np.__name__:
 
             def window_fn(win_len):
                 return torch.from_numpy(window.astype(np.float32)).to(
@@ -383,11 +390,11 @@ class ConvertibleSpectrogram(nn.Module):
                 return torch.from_numpy(window.astype(np.float32)).to(
                     self.device
                 )
-
+                
         else:
             raise RuntimeError(
                 f"Unsuported window parameter {window}. "
-                "Valid options are 'hann' or an ndarray"
+                "Valid options are 'hann', torch.tensor or an np.ndarray"
             )
         return window_fn
 
@@ -554,3 +561,26 @@ class ConvertibleSpectrogram(nn.Module):
                 out = torch.maximum(out, thresholds.reshape(-1, 1, 1))
 
         return out
+
+
+if __name__ == "__main__":
+    sample_rate=16000
+    n_fft=400
+    win_length=400
+    hop_length=160
+    n_mels=80
+    coef=0.97
+    fmin = 20
+    fmax = 7600
+    
+    spec = ConvertibleSpectrogram(sr=16_000, \
+                                            n_fft=n_fft,\
+                                            hop_size=hop_length, \
+                                            n_mel=n_mels, \
+                                            fmin = fmin, fmax = fmax, \
+                                            window=torch.hamming_window(win_length),
+                                            spec_mode="DFT",
+                                            mel_mode="torchaudio",
+                                            mel_scale="htk",)
+    
+    print('execution success')

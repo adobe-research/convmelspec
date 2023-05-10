@@ -573,7 +573,7 @@ if __name__ == "__main__":
     fmin = 20
     fmax = 7600
     
-    spec = ConvertibleSpectrogram(sr=16_000, \
+    my_spec = ConvertibleSpectrogram(sr=16_000, \
                                             n_fft=n_fft,\
                                             hop_size=hop_length, \
                                             n_mel=n_mels, \
@@ -582,5 +582,14 @@ if __name__ == "__main__":
                                             spec_mode="DFT",
                                             mel_mode="torchaudio",
                                             mel_scale="htk",)
+    
+    
+    spec = torchaudio.transforms.MelSpectrogram(sample_rate=sample_rate, \
+                                                                    n_fft=n_fft,\
+                                                                    win_length=win_length,\
+                                                                    hop_length=hop_length, \
+                                                                    n_mels=n_mels, \
+                                                                    f_min = 20, f_max = 7600, \
+                                                                    window_fn=torch.hamming_window, )
     
     print('execution success')

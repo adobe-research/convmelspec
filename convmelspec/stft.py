@@ -332,6 +332,8 @@ class ConvertibleSpectrogram(nn.Module):
                     on-device integration = Most complicated
                 Note: CoreML on_the_fly is internally optimized to store. No workaround so far.
             coreml (bool, optional): Whether to use a coreml-compatible version
+            dtype (torch.dtype, optional): dtype. Defaults to torch.float16.
+            debug (bool, optional): Whether to enable the debug nan & inf forward hooks. Defaults to False.
         """
         super(ConvertibleSpectrogram, self).__init__()
 

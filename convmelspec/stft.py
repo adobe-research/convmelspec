@@ -350,7 +350,6 @@ class ConvertibleSpectrogram(nn.Module):
         self.window_fn = self._create_window_fn(window)
         self.spec_transf = None
         self.stft = None
-        self.clamp_max = torch.finfo(dtype).max
         self.debug = debug
 
         # Create mode (torchaudio vs. DFT and DTF mode if applicable)
@@ -559,9 +558,11 @@ class ConvertibleSpectrogram(nn.Module):
             )
 
         if self.n_mel:
-            out = out.clamp(min=1e-4, max=self.clamp_max * 0.8)
+            # set the floor to the nearest magnitude above the smallest float to leave room for calculation
+            min_magnitude = 10 ** (np.ceil(np.log10(torch.finfo(self.dtype).tiny)))
+            out = out.clamp(min=min_magnitude)
             out = self.mel(out)
-            out = out.clamp(min=1e-4, max=self.clamp_max)
+            out = out.clamp(min=min_magnitude)
 
         if db:
             scale = 10.0 if power else 20.0

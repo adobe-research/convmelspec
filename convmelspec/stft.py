@@ -25,7 +25,7 @@ def _register_nan_forward_hook():
         if torch.isneginf(output).any():
             raise RuntimeError(f"-inf detected in {module.__class__.__name__}")
 
-    return torch.register_module_forward_hook(_nan_forward_hook)
+    return torch.nn.modules.module.register_module_forward_hook(_nan_forward_hook)
 
 class MelFilterbank(nn.Module):
     """Torch mel filterbank linear layer"""
@@ -373,7 +373,12 @@ class ConvertibleSpectrogram(nn.Module):
 
         if self.debug:
             print(f"Enabling ConvertibleSpectrogram debug hooks")
-            _register_nan_forward_hook()
+            self.hook = _register_nan_forward_hook()
+
+    def __del__(self):
+        if self.debug:
+            print(f"Deleting ConvertibleSpectrogram debug hooks")
+            self.hook.remove()
 
     def to(self, *args, **kwargs):
         self = super().to(*args, **kwargs)

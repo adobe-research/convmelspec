@@ -83,6 +83,7 @@ class TestEquivalence(unittest.TestCase):
             mel_mode="librosa",
             mel_scale="slaney",
             dtype=torch.float32,
+            debug=True,
         )
         stft.to(DEVICE)
         melstft.to(DEVICE)
@@ -115,11 +116,6 @@ class TestEquivalence(unittest.TestCase):
         S2_gpu = S2_gpu.detach().cpu().numpy()[0, :, :]
         M_gpu = M_gpu.detach().cpu().numpy()[0, :, :]
 
-        # clamp to 1e-4
-        S_librosa = np.clip(S_librosa, a_min=1e-4, a_max=None)
-        S2_librosa = np.clip(S2_librosa, a_min=1e-4, a_max=None)
-        M_librosa = np.clip(M_librosa, a_min=1e-4, a_max=None)
-
         np.testing.assert_allclose(S_librosa, S_gpu, atol=1e-04)
         np.testing.assert_allclose(S2_librosa, S2_gpu, atol=1e-04)
         np.testing.assert_allclose(M_librosa, M_gpu, atol=1e-04)
@@ -137,6 +133,7 @@ class TestEquivalence(unittest.TestCase):
             padding=0,
             window=wn,
             spec_mode="DFT",
+            dtype=torch.float32,
         )
         melstft = Spectrogram(
             sr=SR,
@@ -149,6 +146,7 @@ class TestEquivalence(unittest.TestCase):
             mel_mode="torchaudio",
             mel_scale="htk",
             dtype=torch.float32,
+            debug=True,
         )
 
         stft.to(DEVICE)
@@ -193,14 +191,10 @@ class TestEquivalence(unittest.TestCase):
         S2_gpu = S2_gpu.detach().cpu().numpy()[0, :, :]
         M_gpu = M_gpu.detach().cpu().numpy()[0, :, :]
 
-         # clamp to 1e-4
-        S2_librosa = np.clip(S2_librosa, a_min=1e-4, a_max=None)
-        M_librosa = np.clip(M_librosa, a_min=1e-4, a_max=None)
-
         np.testing.assert_allclose(S2_librosa, S2_gpu, atol=1e-04)
-        np.testing.assert_allclose(M_librosa, M_gpu, atol=1e-03) # tolerance is affected by mel clamp
+        np.testing.assert_allclose(M_librosa, M_gpu, atol=1e-04)
 
-   
+
 
 
 if __name__ == "__main__":

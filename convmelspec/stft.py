@@ -439,7 +439,7 @@ class ConvertibleSpectrogram(nn.Module):
             n = torch.arange(
                 0,
                 self.n_fft,
-                dtype=self.dtype,
+                dtype=torch.float32,
                 requires_grad=False,
                 device=self.device,
             )
@@ -447,7 +447,7 @@ class ConvertibleSpectrogram(nn.Module):
             w = (2.0 * self.py / self.n_fft) * torch.arange(
                 0,
                 self.n_fft / 2 + 1,
-                dtype=self.dtype,
+                dtype=torch.float32,
                 requires_grad=False,
                 device=self.device,
             )

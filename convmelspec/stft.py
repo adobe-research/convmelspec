@@ -350,6 +350,7 @@ class ConvertibleSpectrogram(nn.Module):
         self.window_fn = self._create_window_fn(window)
         self.spec_transf = None
         self.stft = None
+        self.dtype = dtype
         self.debug = debug
 
         # Create mode (torchaudio vs. DFT and DTF mode if applicable)

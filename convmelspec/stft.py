@@ -16,7 +16,16 @@ import torch.nn as nn
 import torch.nn.functional as F
 from scipy import signal as sig
 
-DEBUG = False
+def _register_nan_forward_hook():
+    def _nan_forward_hook(module, input, output):
+        if torch.isnan(output).any():
+            raise RuntimeError(f"NaN detected in {module.__class__.__name__}")
+        if torch.isposinf(output).any():
+            raise RuntimeError(f"+inf detected in {module.__class__.__name__}")
+        if torch.isneginf(output).any():
+            raise RuntimeError(f"-inf detected in {module.__class__.__name__}")
+
+    return torch.register_module_forward_hook(_nan_forward_hook)
 
 class MelFilterbank(nn.Module):
     """Torch mel filterbank linear layer"""
@@ -77,11 +86,6 @@ class MelFilterbank(nn.Module):
                 norm=norm,
                 mel_scale=mel_scale,
             )
-            
-            if DEBUG:
-                assert not torch.isnan(temp.fb).any(), "mel filterbanks nan"
-                assert not torch.isposinf(temp.fb).any(), "mel filterbanks +inf"
-                assert not torch.isneginf(temp.fb).any(), "mel filterbanks -inf"
 
             self.mel_analysis.weight.data.copy_(temp.fb.T)
 
@@ -245,7 +249,7 @@ class _STFT_Internal(nn.Module):
             x, self.DFTr, self.DFTi, hop_size, power=power
         )
 
-    
+
 
 class ConvertibleSpectrogram(nn.Module):
     """Convertible Spectrogram
@@ -293,6 +297,7 @@ class ConvertibleSpectrogram(nn.Module):
         dft_mode: str = "on_the_fly",
         coreml: bool = False,
         dtype: torch.dtype = torch.float16,
+        debug: bool = False,
     ):
         """_summary_
 
@@ -344,6 +349,7 @@ class ConvertibleSpectrogram(nn.Module):
         self.spec_transf = None
         self.stft = None
         self.clamp_max = torch.finfo(dtype).max
+        self.debug = debug
 
         # Create mode (torchaudio vs. DFT and DTF mode if applicable)
         self.set_mode(spec_mode, dft_mode=dft_mode, coreml=self.coreml)
@@ -359,6 +365,10 @@ class ConvertibleSpectrogram(nn.Module):
                 mel_scale=mel_scale,
                 norm=norm,
             )
+
+        if self.debug:
+            print(f"Enabling ConvertibleSpectrogram debug hooks")
+            _register_nan_forward_hook()
 
     def to(self, *args, **kwargs):
         self = super().to(*args, **kwargs)
@@ -510,12 +520,7 @@ class ConvertibleSpectrogram(nn.Module):
         Returns:
             _type_: tensor of (batch x mel x frames)
         """
-        
-        if DEBUG:
-            assert not torch.isnan(x).any(), "input nan"
-            assert not torch.isposinf(x).any(), "input +inf"
-            assert not torch.isneginf(x).any(), "input -inf"
-        
+
         x = x.unsqueeze(1)  # Add channel: (batch x channel x samples)
         if self.spec_mode == "torchaudio":
             self.spec_transf.power = 2.0 if power else None
@@ -550,25 +555,15 @@ class ConvertibleSpectrogram(nn.Module):
                 f"Unsupported spec_mode {self.spec_mode} "
                 "(supported modes are 'torchaudio', 'DFT')"
             )
-        
-        if DEBUG:
-            assert not torch.isnan(out).any(), "dft conversion nan"
-            assert not torch.isposinf(out).any(), "dft conversion +inf"
-            assert not torch.isneginf(out).any(), "dft conversion -inf"
 
         if self.n_mel:
             out = out.clamp(min=1e-4, max=self.clamp_max * 0.8)
             out = self.mel(out)
             out = out.clamp(min=1e-4, max=self.clamp_max)
-        
-        if DEBUG:
-            assert not torch.isnan(out).any(), f"mel conversion nan"
-            assert not torch.isposinf(out).any(), "mel conversion +inf"
-            assert not torch.isneginf(out).any(), "mel conversion -inf"
 
         if db:
             scale = 10.0 if power else 20.0
-            
+
             import torchaudio
             out = torchaudio.functional.amplitude_to_DB(
                 out,
@@ -576,10 +571,5 @@ class ConvertibleSpectrogram(nn.Module):
                 amin=1e-4,
                 db_multiplier=0,
                 top_db=top_db)
-
-            if DEBUG:
-                assert not torch.isnan(out).any(), "db conversion nan"
-                assert not torch.isposinf(out).any(), "db conversion +inf"
-                assert not torch.isneginf(out).any(), "db conversion -inf"
 
         return out

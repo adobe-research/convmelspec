@@ -573,9 +573,10 @@ class ConvertibleSpectrogram(nn.Module):
                 "(supported modes are 'torchaudio', 'DFT')"
             )
 
+        # set the floor to the nearest magnitude above the smallest float to leave room for calculation
+        min_magnitude = 10 ** (np.ceil(np.log10(torch.finfo(self.dtype).tiny)))
+
         if self.n_mel:
-            # set the floor to the nearest magnitude above the smallest float to leave room for calculation
-            min_magnitude = 10 ** (np.ceil(np.log10(torch.finfo(self.dtype).tiny)))
             out = out.clamp(min=min_magnitude)
             out = self.mel(out)
             out = out.clamp(min=min_magnitude)
@@ -591,7 +592,7 @@ class ConvertibleSpectrogram(nn.Module):
             out = torchaudio.functional.amplitude_to_DB(
                 out,
                 multiplier=scale,
-                amin=1e-4,
+                amin=min_magnitude,
                 db_multiplier=0,
                 top_db=top_db)
 

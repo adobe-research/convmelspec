@@ -353,6 +353,9 @@ class ConvertibleSpectrogram(nn.Module):
         self.dtype = dtype
         self.debug = debug
 
+        # Store the window scale, if necessary
+        self.window_scale = None
+
         # Create mode (torchaudio vs. DFT and DTF mode if applicable)
         self.set_mode(spec_mode, dft_mode=dft_mode, coreml=self.coreml)
 
@@ -488,12 +491,24 @@ class ConvertibleSpectrogram(nn.Module):
         elif self.spec_mode == "torchaudio":
             import torchaudio  # lazy import
             self.stft = None
+
+            # For dtype=torch.float16, torchaudio needs a normalized window
+            # to avoid overflowing the 16-bit precision
+            if self.dtype == torch.float16:
+                def normalized_window_fn(*args, **kwargs):
+                    w = self.window_fn(*args, **kwargs)
+                    if not self.window_scale:
+                        self.window_scale = w.sum()
+                    return w / self.window_scale
+            else:
+                normalized_window_fn = self.window_fn
+
             self.spec_transf = torchaudio.transforms.Spectrogram(
                 n_fft=self.n_fft,
                 hop_length=self.hop_size,
                 power=2.0,
                 center=False,
-                window_fn=self.window_fn,
+                window_fn=normalized_window_fn,
                 pad=self.padding,
             )
 
@@ -564,6 +579,10 @@ class ConvertibleSpectrogram(nn.Module):
             out = out.clamp(min=min_magnitude)
             out = self.mel(out)
             out = out.clamp(min=min_magnitude)
+
+        # un-normalize the window if needed
+        if self.window_scale:
+            out = out * self.window_scale
 
         if db:
             scale = 10.0 if power else 20.0

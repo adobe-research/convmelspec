@@ -22,7 +22,6 @@ import tempfile
 
 from convmelspec.convert import *
 from convmelspec.stft import ConvertibleSpectrogram as Spectrogram
-from convmelspec.mil import *
 
 
 BATCH_SIZE = 1

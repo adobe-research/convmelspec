@@ -10,7 +10,7 @@
 
 
 from sys import platform
-from typing import Any
+from typing import Any, Literal, Optional
 
 import coremltools as ct
 import torch
@@ -45,8 +45,8 @@ def save_coreml(traced_model: object,
                 oshape: list,
                 nbits: int,
                 output_path: str,
-                compute_units: ct.ComputeUnit=ct.ComputeUnit.ALL,
-                minimum_deployment_target: Any=None):
+                minimum_deployment_target: Optional[Any]=None,
+                convert_to: Literal['neuralnetwork', 'mlpackage'] = 'neuralnetwork'):
     """Save a traced PyTorch model to CoreML.
     To trace a model, please follow:
         traced_model = torch.jit.trace(model, dummy_input)
@@ -63,39 +63,24 @@ def save_coreml(traced_model: object,
         Number of bits, 16 or 32-bit
     output_path : str
         File path of model output
-    compute_units : ct.ComputeUnit, optional
-        Type of compute unit to use, by default ct.ComputeUnit.ALL
     minimum_deployment_target : Any, optional
         Min target to deploy the model, by default None
+    convert_to : Literal['mlmodel', 'mlpackage'], optional
+        Convert to mlmodel or mlpackage, by default 'mlmodel'
     """
     assert len(input_tensors) > 0
-    mlmodel = ct.convert(model=traced_model,
+
+    outputs = [ct.TensorType(name="output")]
+    model_out = ct.convert(model=traced_model,
                          inputs=input_tensors,
-                         compute_units=compute_units,
-                         minimum_deployment_target=minimum_deployment_target)
+                         outputs=outputs,
+                         minimum_deployment_target=minimum_deployment_target,
+                         convert_to=convert_to)
 
     # Quantize if needed
     model_specs = None
-    if nbits == 16:
-        # The following returns a model on macOS, and only the specs otherwise
-        model_or_specs = quantization_utils.quantize_weights(mlmodel,
-                                                             nbits=nbits)
-        if platform == "darwin":
-            mlmodel = model_or_specs
-        else:
-            model_specs = model_or_specs
-    if not model_specs:
-        model_specs = mlmodel.get_spec()
+    if convert_to == 'neuralnetwork' and nbits == 16:
+        model_or_specs = quantization_utils.quantize_weights(model_out, nbits=nbits)
+        model_out = model_or_specs if isinstance(model_or_specs, ct.models.MLModel) else ct.models.MLModel(model_or_specs)
 
-    # Rename output to "output", following
-    #   https://github.com/apple/coremltools/issues/775
-    current_output_names = mlmodel.output_description._fd_spec
-    old_name = current_output_names[0].name
-    new_name = "output"
-    ct.utils.rename_feature(model_specs, old_name, new_name, rename_outputs=True)
-
-    # Set the output dimensions
-    for d in oshape:
-        model_specs.description.output[0].type.multiArrayType.shape.append(d)
-    model_out = ct.models.MLModel(model_specs, compute_units=compute_units)
     model_out.save(output_path)

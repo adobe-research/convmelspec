@@ -127,6 +127,8 @@ mlmodel.save(output_path)
 
 In addition to using our PyTorch layer to convert to CoreML, we also provide an example of how to use native torchaudio melspectrogram together with CoreMLTools model intermediate language (MIL) operators for conversion. To do this, please see the example below and corresponding unit tests.
 
+The MIL implementation is provided as an illustrative example, but should not regularly be used in favor of the native STFT conversion implementation provided in coremltools.
+
 ```
 import torchaudio
 

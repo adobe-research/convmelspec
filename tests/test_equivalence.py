@@ -62,15 +62,18 @@ class TestEquivalence(unittest.TestCase):
         wn = sig.windows.hann(FFT_SIZE, sym=True)
 
         # Create PyTorch STFT layer
-        stft = Spectrogram(
-            sr=SR,
-            n_fft=FFT_SIZE,
-            hop_size=HOP_SIZE,
-            n_mel=None,
-            window=wn,
-            padding=0,
-            spec_mode="DFT",
-        )
+        def stft(power: bool):
+            return Spectrogram(
+                sr=SR,
+                n_fft=FFT_SIZE,
+                hop_size=HOP_SIZE,
+                n_mel=None,
+                window=wn,
+                padding=0,
+                spec_mode="DFT",
+                power=2.0 if power else 1.0,
+            )
+
         melstft = Spectrogram(
             sr=SR,
             n_fft=FFT_SIZE,
@@ -84,7 +87,7 @@ class TestEquivalence(unittest.TestCase):
             dtype=torch.float32,
             debug=True,
         )
-        stft.to(DEVICE)
+
         melstft.to(DEVICE)
         # Store CPU audio to GPU tensor of batch x channels x samples
         x = torch.zeros([BATCH_SIZE, self.audio.shape[0]])
@@ -107,8 +110,8 @@ class TestEquivalence(unittest.TestCase):
         S2_librosa = np.abs(S_librosa) ** 2
         M_librosa = mel_matrix.dot(S2_librosa)
 
-        S2_gpu = stft(x)
-        S_gpu = stft(x, power=False)
+        S2_gpu = stft(power=True).to(DEVICE)(x)
+        S_gpu = stft(power=False).to(DEVICE)(x)
         M_gpu = melstft(x)
 
         S_gpu = S_gpu.detach().cpu().numpy()[0, :, :]
@@ -184,8 +187,8 @@ class TestEquivalence(unittest.TestCase):
 
         M_librosa = melspec_layer(x[0, :]).to("cpu")
 
-        S2_gpu = stft(x, power=True).to("cpu")
-        M_gpu = melstft(x, power=True).to("cpu")
+        S2_gpu = stft(x).to("cpu")
+        M_gpu = melstft(x).to("cpu")
 
         S2_gpu = S2_gpu.detach().cpu().numpy()[0, :, :]
         M_gpu = M_gpu.detach().cpu().numpy()[0, :, :]

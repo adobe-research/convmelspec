@@ -46,8 +46,7 @@ class TestConvertONNX(unittest.TestCase):
         # return
 
         cls.temp_dir = tempfile.TemporaryDirectory()
-        # cls.OUTPUT_DIR = cls.temp_dir.name
-        cls.OUTPUT_DIR = "/Users/nibryan/Desktop"
+        cls.OUTPUT_DIR = cls.temp_dir.name
 
         example_audio_path = librosa.example("nutcracker")
         y, sr = librosa.load(example_audio_path, sr=SR)

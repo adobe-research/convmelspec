@@ -16,6 +16,16 @@ import torch.nn as nn
 import torch.nn.functional as F
 from scipy import signal as sig
 
+def _register_nan_forward_hook():
+    def _nan_forward_hook(module, input, output):
+        if torch.isnan(output).any():
+            raise RuntimeError(f"NaN detected in {module.__class__.__name__}")
+        if torch.isposinf(output).any():
+            raise RuntimeError(f"+inf detected in {module.__class__.__name__}")
+        if torch.isneginf(output).any():
+            raise RuntimeError(f"-inf detected in {module.__class__.__name__}")
+
+    return torch.nn.modules.module.register_module_forward_hook(_nan_forward_hook)
 
 class MelFilterbank(nn.Module):
     """Torch mel filterbank linear layer"""
@@ -76,6 +86,7 @@ class MelFilterbank(nn.Module):
                 norm=norm,
                 mel_scale=mel_scale,
             )
+
             self.mel_analysis.weight.data.copy_(temp.fb.T)
 
             # Torchaudio 0.11
@@ -238,7 +249,7 @@ class _STFT_Internal(nn.Module):
             x, self.DFTr, self.DFTi, hop_size, power=power
         )
 
-    
+
 
 class ConvertibleSpectrogram(nn.Module):
     """Convertible Spectrogram
@@ -285,6 +296,8 @@ class ConvertibleSpectrogram(nn.Module):
         eps: float = 1e-8,
         dft_mode: str = "on_the_fly",
         coreml: bool = False,
+        dtype: torch.dtype = torch.float16,
+        debug: bool = False,
     ):
         """_summary_
 
@@ -319,6 +332,8 @@ class ConvertibleSpectrogram(nn.Module):
                     on-device integration = Most complicated
                 Note: CoreML on_the_fly is internally optimized to store. No workaround so far.
             coreml (bool, optional): Whether to use a coreml-compatible version
+            dtype (torch.dtype, optional): dtype. Defaults to torch.float16.
+            debug (bool, optional): Whether to enable the debug nan & inf forward hooks. Defaults to False.
         """
         super(ConvertibleSpectrogram, self).__init__()
 
@@ -335,6 +350,11 @@ class ConvertibleSpectrogram(nn.Module):
         self.window_fn = self._create_window_fn(window)
         self.spec_transf = None
         self.stft = None
+        self.dtype = dtype
+        self.debug = debug
+
+        # Store the window scale, if necessary
+        self.window_scale = None
 
         # Create mode (torchaudio vs. DFT and DTF mode if applicable)
         self.set_mode(spec_mode, dft_mode=dft_mode, coreml=self.coreml)
@@ -350,6 +370,15 @@ class ConvertibleSpectrogram(nn.Module):
                 mel_scale=mel_scale,
                 norm=norm,
             )
+
+        if self.debug:
+            print(f"Enabling ConvertibleSpectrogram debug hooks")
+            self.hook = _register_nan_forward_hook()
+
+    def __del__(self):
+        if self.debug:
+            print(f"Deleting ConvertibleSpectrogram debug hooks")
+            self.hook.remove()
 
     def to(self, *args, **kwargs):
         self = super().to(*args, **kwargs)
@@ -467,12 +496,24 @@ class ConvertibleSpectrogram(nn.Module):
         elif self.spec_mode == "torchaudio":
             import torchaudio  # lazy import
             self.stft = None
+
+            # For dtype=torch.float16, torchaudio needs a normalized window
+            # to avoid overflowing the 16-bit precision
+            if self.dtype == torch.float16:
+                def normalized_window_fn(*args, **kwargs):
+                    w = self.window_fn(*args, **kwargs)
+                    if not self.window_scale:
+                        self.window_scale = w.sum()
+                    return w / self.window_scale
+            else:
+                normalized_window_fn = self.window_fn
+
             self.spec_transf = torchaudio.transforms.Spectrogram(
                 n_fft=self.n_fft,
                 hop_length=self.hop_size,
                 power=2.0,
                 center=False,
-                window_fn=self.window_fn,
+                window_fn=normalized_window_fn,
                 pad=self.padding,
             )
 
@@ -501,10 +542,13 @@ class ConvertibleSpectrogram(nn.Module):
         Returns:
             _type_: tensor of (batch x mel x frames)
         """
+
         x = x.unsqueeze(1)  # Add channel: (batch x channel x samples)
         if self.spec_mode == "torchaudio":
             self.spec_transf.power = 2.0 if power else None
             out = self.spec_transf(x.squeeze(1))
+            if not power:
+                out = torch.abs(out)
 
         elif self.spec_mode == "DFT":
             with torch.cuda.amp.autocast(enabled=False):
@@ -534,23 +578,27 @@ class ConvertibleSpectrogram(nn.Module):
                 "(supported modes are 'torchaudio', 'DFT')"
             )
 
+        # set the floor to the nearest magnitude above the smallest float to leave room for calculation
+        min_magnitude = 10 ** (np.ceil(np.log10(torch.finfo(self.dtype).tiny)))
+
         if self.n_mel:
+            out = out.clamp(min=min_magnitude)
             out = self.mel(out)
+            out = out.clamp(min=min_magnitude)
+
+        # un-normalize the window if needed
+        if self.window_scale:
+            out = out * self.window_scale
 
         if db:
             scale = 10.0 if power else 20.0
-            out = scale * torch.log10(out + self.eps)
 
-            # Output shape: 1 x mel x frames
-            if top_db is not None:
-                thresholds = (
-                    torch.max(
-                        torch.max(out, dim=1, keepdim=False)[0],
-                        dim=1,
-                        keepdim=False,
-                    )[0]
-                    - top_db
-                )
-                out = torch.maximum(out, thresholds.reshape(-1, 1, 1))
+            import torchaudio
+            out = torchaudio.functional.amplitude_to_DB(
+                out,
+                multiplier=scale,
+                amin=min_magnitude,
+                db_multiplier=0,
+                top_db=top_db)
 
         return out

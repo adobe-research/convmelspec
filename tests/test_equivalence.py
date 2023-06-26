@@ -20,7 +20,6 @@ import tempfile
 import torchaudio
 
 from convmelspec.stft import ConvertibleSpectrogram as Spectrogram
-from convmelspec.mil import *
 
 BATCH_SIZE = 1
 MEL_BANDS = 128

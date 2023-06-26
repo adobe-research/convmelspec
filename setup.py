@@ -38,7 +38,7 @@ setup(
         "scipy",
         "torch",
         "soundfile",
-        "coremltools",
+        "coremltools>=7.0b1",
         "onnxruntime",
         "onnx",
         "torchaudio",

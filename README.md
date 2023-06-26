@@ -28,10 +28,10 @@ conda activate convmelspec
 ```
 
 
-* Install the source code 
+* Install the source code
 
 ```
-# Install editable from source 
+# Install editable from source
 cd <convmelspec>
 
 # Install as editable (for developers)
@@ -113,9 +113,9 @@ traced_model = torch.jit.trace(melspec, x)
 
 # Convert traced model to CoreML
 input_tensors = [ct.TensorType(name="input", shape=(x.shape))]
-mlmodel = ct.convert(model=traced_model, 
-                     inputs=input_tensors, 
-                     compute_units=ct.ComputeUnit.ALL, 
+mlmodel = ct.convert(model=traced_model,
+                     inputs=input_tensors,
+                     compute_units=ct.ComputeUnit.ALL,
                      minimum_deployment_target=None)
 
 # Save to disk
@@ -127,16 +127,12 @@ mlmodel.save(output_path)
 
 In addition to using our PyTorch layer to convert to CoreML, we also provide an example of how to use native torchaudio melspectrogram together with CoreMLTools model intermediate language (MIL) operators for conversion. To do this, please see the example below and corresponding unit tests.
 
+The MIL implementation is provided as an illustrative example, but should not regularly be used in favor of the native STFT conversion implementation provided in coremltools.
+
 ```
-from convmelspec.mil import register_stft
 import torchaudio
 
 output_path = '/tmp/melspec-mil.mlmodel'
-
-# Set DFT mode (pick one of the two lines below)
-# Note this used to registre the stft op before conversion
-register_stft("on_the_fly") 
-register_stft("store") 
 
 # Use native torchaudio melspec + CoreMLTools MIL
 melspec = torchaudio.transforms.MelSpectrogram(
@@ -150,9 +146,9 @@ traced_model = torch.jit.trace(melspec, x)
 
 # Convert traced model to CoreML
 input_tensors = [ct.TensorType(name="input", shape=(x.shape))]
-mlmodel = ct.convert(model=traced_model, 
-                     inputs=input_tensors, 
-                     compute_units=ct.ComputeUnit.ALL, 
+mlmodel = ct.convert(model=traced_model,
+                     inputs=input_tensors,
+                     compute_units=ct.ComputeUnit.ALL,
                      minimum_deployment_target=None)
 
 # Save to disk

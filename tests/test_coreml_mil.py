@@ -25,7 +25,6 @@ import convmelspec.convert as fc
 
 
 from convmelspec.stft import ConvertibleSpectrogram as Spectrogram
-from convmelspec.mil import *
 
 
 BATCH_SIZE = 1
@@ -74,9 +73,6 @@ class TestCoreMLMILConversion(unittest.TestCase):
 
         for mode in ['on_the_fly', 'store']:
 
-            #
-            register_stft(mode)
-
             output_path = os.path.join(
                 self.OUTPUT_DIR, "coreml-mil-stft-" + mode + ".mlmodel"
             )
@@ -94,6 +90,7 @@ class TestCoreMLMILConversion(unittest.TestCase):
                 power=2.0,
             )
 
+            spec_layer.eval()
             traced_model = torch.jit.trace(spec_layer, x)
 
             traced_output = spec_layer(x).numpy()
@@ -122,10 +119,7 @@ class TestCoreMLMILConversion(unittest.TestCase):
 
     def test_torchaudio_melspectrogram_coreml_mil_convert(self):
 
-        # register_stft('on_the_fly')
         for mode in ['on_the_fly']:
-
-            register_stft(mode)
 
             output_path = os.path.join(
                 self.OUTPUT_DIR, "coreml-mil-melspec-" + mode + ".mlmodel"
@@ -145,6 +139,7 @@ class TestCoreMLMILConversion(unittest.TestCase):
                 power=2.0,
             )
 
+            spec_layer.eval()
             traced_model = torch.jit.trace(spec_layer, x)
 
             traced_output = spec_layer(x).numpy()

@@ -36,7 +36,7 @@ setup(
     install_requires=[
         "numpy",
         "scipy",
-        "torch>=2.0.1",
+        "torch",
         "soundfile",
         "coremltools>=7.0b1",
         "onnxruntime",

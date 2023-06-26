@@ -36,6 +36,7 @@ def save_onnx(model: object,
                 verbose=verbose,
                 input_names = input_names,
                 output_names = output_names,
+                opset_version=17,
                 dynamic_axes={'input' : {0 : 'batch_size'},
                               'output' : {0 : 'batch_size'}})
 
@@ -46,7 +47,7 @@ def save_coreml(traced_model: object,
                 nbits: int,
                 output_path: str,
                 minimum_deployment_target: Optional[Any]=None,
-                convert_to: Literal['neuralnetwork', 'mlpackage'] = 'neuralnetwork'):
+                convert_to: Literal['neuralnetwork', 'mlprogram'] = 'neuralnetwork'):
     """Save a traced PyTorch model to CoreML.
     To trace a model, please follow:
         traced_model = torch.jit.trace(model, dummy_input)

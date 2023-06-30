@@ -10,6 +10,7 @@
 
 from typing import Callable, Optional, Union
 
+import math
 import numpy as np
 import torch
 import torch.nn as nn
@@ -49,13 +50,11 @@ class MelFilterbank(nn.Module):
         self.n_mel = n_mel
         self.n_fft = n_fft
         self.half_N = int(n_fft / 2.0 + 1)
-
-        # Mel Layer
-        self.mel_analysis = nn.Linear(self.half_N, n_mel, bias=False)
+        self.mel_mode = mel_mode
 
         # Initialize weights with the Mel filter-bank
         if fmax == None:
-            fmax = sr / 2.0
+            fmax = sr // 2.0
 
         if mel_mode == "librosa":
             import librosa  # lazy loading to allow minimal package dependencies
@@ -72,14 +71,19 @@ class MelFilterbank(nn.Module):
                 fmax=fmax,
                 htk=htk,
             )
+            self.mel_analysis = nn.Linear(self.half_N, n_mel, bias=False)
             self.mel_analysis.weight.data.copy_(torch.from_numpy(mel_matrix))
+
+            # Make no gradient, so it doesn't train
+            for param in self.mel_analysis.parameters():
+                param.requires_grad = False
 
         elif mel_mode == "torchaudio":
             import torchaudio  # lazy loading to allow minimal package dependencies
 
-            temp = torchaudio.transforms.MelScale(
+            self.mel_transform = torchaudio.transforms.MelScale(
                 self.n_mel,
-                self.fs,
+                int(self.fs),
                 fmin,
                 f_max=fmax,
                 n_stft=int(n_fft / 2 + 1),
@@ -87,26 +91,11 @@ class MelFilterbank(nn.Module):
                 mel_scale=mel_scale,
             )
 
-            self.mel_analysis.weight.data.copy_(temp.fb.T)
-
-            # Torchaudio 0.11
-            # self.mel = torchaudio.functional.melscale_fbanks(n_fft,
-            #                                                  fmin,
-            #                                                  fmax,
-            #                                                  n_mel,
-            #                                                  sample_rate=sr,
-            #                                                  norm=norm,
-            #                                                  mel_scale=mel_scale)
-
         else:
             raise RuntimeError(
                 f"Mel mode {mel_mode} is not supported (available modes "
                 "are 'librosa' and 'torchaudio')"
             )
-
-        # Make no gradient, so it doesn't train
-        for param in self.mel_analysis.parameters():
-            param.requires_grad = False
 
     def forward(self, x: torch.Tensor):
         """Inference
@@ -117,10 +106,13 @@ class MelFilterbank(nn.Module):
         Returns:
             _type_: (batch x mel channels, frames)
         """
-        x = torch.transpose(x, 1, 2)
-        mel_x = self.mel_analysis(x)
-        mel_x = torch.transpose(mel_x, 1, 2)
-        return mel_x
+        if self.mel_mode == "torchaudio":
+            return self.mel_transform(x)
+        else:
+            x = torch.transpose(x, 1, 2)
+            mel_x = self.mel_analysis(x)
+            mel_x = torch.transpose(mel_x, 1, 2)
+            return mel_x
 
 
 def _Create_DFT_matrix_func(
@@ -157,7 +149,6 @@ class _STFT_Internal(nn.Module):
         super(_STFT_Internal, self).__init__()
         self.dft_mode = dft_mode
         self._create_DFT_matrix = _Create_DFT_matrix_func
-        self.no_impact = 1e-16
         self.padding = padding
 
         if self.dft_mode == "store":
@@ -211,13 +202,7 @@ class _STFT_Internal(nn.Module):
         hop_size: int = 512,
         power: bool = True,
         window: torch.Tensor = None,
-        coreml: bool = False,
     ):
-
-        # Only needed for Core ML
-        if coreml:
-            n = n + x[0, 0, 0] * self.no_impact
-
         DFTr, DFTi = self._create_DFT_matrix(n, w, window=window)
         return self.forward_input(x, DFTr, DFTi, hop_size, power=power)
 
@@ -285,7 +270,7 @@ class ConvertibleSpectrogram(nn.Module):
         n_fft: int = 1024,
         window: Union[str, np.ndarray] = "hann",
         hop_size: int = 512,
-        n_mel: int = None,
+        n_mel: Optional[int] = None,
         spec_mode: str = "torchaudio",
         mel_mode: str = "torchaudio",
         fmin: float = 0.0,
@@ -294,8 +279,8 @@ class ConvertibleSpectrogram(nn.Module):
         norm=None,
         padding: int = 512,
         eps: float = 1e-8,
+        power: float = 2.0,
         dft_mode: str = "on_the_fly",
-        coreml: bool = False,
         dtype: torch.dtype = torch.float16,
         debug: bool = False,
     ):
@@ -314,6 +299,7 @@ class ConvertibleSpectrogram(nn.Module):
             mel_scale (str, optional): 'slaney' or 'htk' api follows each separately. Defaults to 'slaney'.
             norm (_type_, optional): See librosa or torchaudio. Defaults to None.
             eps (float, optional): dB floor. Defaults to 1e-8.
+            power (float, optional): Power of spectrogram. Defaults to 2.0.
             dft_mode (str, optional): 'on_the_fly', 'store', 'input'. Defaults to 'store'.
                 on_the_fly = Dynamically creates DFT matrix during inference
                     model_size = pretty small
@@ -338,26 +324,26 @@ class ConvertibleSpectrogram(nn.Module):
         super(ConvertibleSpectrogram, self).__init__()
 
         self.device = "cpu"
+        self.sample_rate = sr
         self.n_fft = n_fft
         self.hop_size = hop_size
         self.n_mel = n_mel
         self.py = np.pi
         self.dft_mode = dft_mode
         self.eps = eps
-        self.coreml = coreml
         self.padding = padding
-        # self._window = window
         self.window_fn = self._create_window_fn(window)
         self.spec_transf = None
         self.stft = None
+        self.power = power
         self.dtype = dtype
         self.debug = debug
 
         # Store the window scale, if necessary
-        self.window_scale = None
+        self.window_scale = 1
 
         # Create mode (torchaudio vs. DFT and DTF mode if applicable)
-        self.set_mode(spec_mode, dft_mode=dft_mode, coreml=self.coreml)
+        self.set_mode(spec_mode, dft_mode=dft_mode)
 
         if self.n_mel:
             self.mel = MelFilterbank(
@@ -496,22 +482,15 @@ class ConvertibleSpectrogram(nn.Module):
         elif self.spec_mode == "torchaudio":
             import torchaudio  # lazy import
             self.stft = None
+            self.window_ta = torch.hann_window(self.n_fft)
+            self.window_scale = self.window_ta.sum()
 
-            # For dtype=torch.float16, torchaudio needs a normalized window
-            # to avoid overflowing the 16-bit precision
-            if self.dtype == torch.float16:
-                def normalized_window_fn(*args, **kwargs):
-                    w = self.window_fn(*args, **kwargs)
-                    if not self.window_scale:
-                        self.window_scale = w.sum()
-                    return w / self.window_scale
-            else:
-                normalized_window_fn = self.window_fn
+            normalized_window_fn = lambda _: self.window_ta / self.window_scale
 
             self.spec_transf = torchaudio.transforms.Spectrogram(
                 n_fft=self.n_fft,
                 hop_length=self.hop_size,
-                power=2.0,
+                power=self.power,
                 center=False,
                 window_fn=normalized_window_fn,
                 pad=self.padding,
@@ -525,7 +504,7 @@ class ConvertibleSpectrogram(nn.Module):
         x: torch.Tensor,
         DFTr: Optional[torch.Tensor] = None,
         DFTi: Optional[torch.Tensor] = None,
-        power: bool = True,
+        power_scale: int = 1,
         db: bool = False,
         top_db: float = None,
     ):
@@ -544,8 +523,8 @@ class ConvertibleSpectrogram(nn.Module):
         """
 
         x = x.unsqueeze(1)  # Add channel: (batch x channel x samples)
+        power = not math.isclose(self.power, 1.0)
         if self.spec_mode == "torchaudio":
-            self.spec_transf.power = 2.0 if power else None
             out = self.spec_transf(x.squeeze(1))
             if not power:
                 out = torch.abs(out)
@@ -564,7 +543,6 @@ class ConvertibleSpectrogram(nn.Module):
                         hop_size=self.hop_size,
                         power=power,
                         window=self.window,
-                        coreml=self.coreml,
                     )
                 elif self.dft_mode == "input":
                     assert DFTr != None
@@ -579,19 +557,18 @@ class ConvertibleSpectrogram(nn.Module):
             )
 
         # set the floor to the nearest magnitude above the smallest float to leave room for calculation
-        min_magnitude = 10 ** (np.ceil(np.log10(torch.finfo(self.dtype).tiny)))
+        min_magnitude = 10 ** np.ceil(np.log10(torch.finfo(self.dtype).tiny))
 
         if self.n_mel:
-            out = out.clamp(min=min_magnitude)
             out = self.mel(out)
             out = out.clamp(min=min_magnitude)
 
         # un-normalize the window if needed
-        if self.window_scale:
-            out = out * self.window_scale
+        out = out * self.window_scale
 
         if db:
             scale = 10.0 if power else 20.0
+            scale = scale / power_scale
 
             import torchaudio
             out = torchaudio.functional.amplitude_to_DB(

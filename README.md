@@ -103,10 +103,9 @@ To convert your model to CoreML, you can use the coremltools Python package
 # Export to CoreML
 output_path = '/tmp/melspec.mlmodel'
 
-# Set the export mode (pick one)
-melspec.set_mode("DFT", "input")
-melspec.set_mode("DFT", "store")
-melspec.set_mode("DFT", "on_the_fly", coreml=True)
+# To reduce the size of the exported CoreML model (tradeoff with speed)
+pipeline = ct.PassPipeline()
+pipeline.set_options("common::const_elimination", {"skip_const_by_size": "1e6"})
 
 # Trace the model
 traced_model = torch.jit.trace(melspec, x)
@@ -116,7 +115,8 @@ input_tensors = [ct.TensorType(name="input", shape=(x.shape))]
 mlmodel = ct.convert(model=traced_model,
                      inputs=input_tensors,
                      compute_units=ct.ComputeUnit.ALL,
-                     minimum_deployment_target=None)
+                     minimum_deployment_target=None,
+                     pass_pipeline=pipeline)
 
 # Save to disk
 mlmodel.save(output_path)

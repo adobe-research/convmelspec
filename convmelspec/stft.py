@@ -281,6 +281,7 @@ class ConvertibleSpectrogram(nn.Module):
         eps: float = 1e-8,
         power: float = 2.0,
         dft_mode: str = "on_the_fly",
+        window_scale: int = 1,
         dtype: torch.dtype = torch.float16,
         debug: bool = False,
     ):
@@ -317,6 +318,7 @@ class ConvertibleSpectrogram(nn.Module):
                     training = unnecessary, use store
                     on-device integration = Most complicated
                 Note: CoreML on_the_fly is internally optimized to store. No workaround so far.
+            window_scale (int, optional): Scale window by this factor. Defaults to 1.
             coreml (bool, optional): Whether to use a coreml-compatible version
             dtype (torch.dtype, optional): dtype. Defaults to torch.float16.
             debug (bool, optional): Whether to enable the debug nan & inf forward hooks. Defaults to False.
@@ -340,7 +342,7 @@ class ConvertibleSpectrogram(nn.Module):
         self.debug = debug
 
         # Store the window scale, if necessary
-        self.window_scale = 1
+        self.window_scale = window_scale
 
         # Create mode (torchaudio vs. DFT and DTF mode if applicable)
         self.set_mode(spec_mode, dft_mode=dft_mode)
@@ -483,7 +485,7 @@ class ConvertibleSpectrogram(nn.Module):
             import torchaudio  # lazy import
             self.stft = None
             self.window_ta = torch.hann_window(self.n_fft)
-            self.window_scale = self.window_ta.sum()
+            self.window_scale = self.window_ta.sum() / self.window_scale
 
             normalized_window_fn = lambda _: self.window_ta / self.window_scale
 
